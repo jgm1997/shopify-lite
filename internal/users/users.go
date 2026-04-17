@@ -13,8 +13,8 @@ type Users interface {
 	GetUserByID(ctx context.Context, id int) (User, bool, error)
 }
 
-func NewPsqlHandler(queries *db.Queries) *PSQL {
-	return &PSQL{
+func NewPsqlHandler(queries *db.Queries) *Store {
+	return &Store{
 		queries: queries,
 	}
 }
@@ -29,7 +29,7 @@ func toUser(row db.User) User {
 	}
 }
 
-func (psql *PSQL) CreateUser(ctx context.Context, u User) (User, error) {
+func (psql *Store) CreateUser(ctx context.Context, u User) (User, error) {
 	passwordHash, err := auth.HashPassword(u.Password)
 	if err != nil {
 		return User{}, err
@@ -45,7 +45,7 @@ func (psql *PSQL) CreateUser(ctx context.Context, u User) (User, error) {
 	return toUser(created), nil
 }
 
-func (psql *PSQL) GetUserByEmail(ctx context.Context, email string) (User, bool, error) {
+func (psql *Store) GetUserByEmail(ctx context.Context, email string) (User, bool, error) {
 	row, err := psql.queries.GetUserByEmail(ctx, email)
 	if err != nil {
 		if err == sql.ErrNoRows {
@@ -56,7 +56,7 @@ func (psql *PSQL) GetUserByEmail(ctx context.Context, email string) (User, bool,
 	return toUser(row), true, nil
 }
 
-func (psql *PSQL) GetUserByID(ctx context.Context, id int) (User, bool, error) {
+func (psql *Store) GetUserByID(ctx context.Context, id int) (User, bool, error) {
 	row, err := psql.queries.GetUserByID(ctx, int32(id))
 	if err != nil {
 		if err == sql.ErrNoRows {

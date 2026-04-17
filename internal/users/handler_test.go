@@ -98,7 +98,7 @@ func TestRegisterHandler(t *testing.T) {
 			mockCreateUserResp: User{
 				ID:        1,
 				Email:     testUserEmail,
-				Role:      UserRoleCustomer,
+				Role:      "customer",
 				CreatedAt: time.Now(),
 			},
 			expectedStatus: http.StatusCreated,
@@ -143,7 +143,7 @@ func TestRegisterHandler(t *testing.T) {
 			mockCreateUserResp: User{
 				ID:        2,
 				Email:     testMerchantEmail,
-				Role:      UserRoleMerchant,
+				Role:      "merchant",
 				CreatedAt: time.Now(),
 			},
 			expectedStatus: http.StatusCreated,
@@ -209,7 +209,7 @@ func TestLoginHandler(t *testing.T) {
 					ID:       1,
 					Email:    testUserEmail,
 					Password: hashedPassword,
-					Role:     UserRoleCustomer,
+					Role:     "customer",
 				}, true, nil
 			},
 			expectedStatus: http.StatusOK,
@@ -224,7 +224,7 @@ func TestLoginHandler(t *testing.T) {
 					ID:       1,
 					Email:    testUserEmail,
 					Password: hashedPassword,
-					Role:     UserRoleCustomer,
+					Role:     "customer",
 				}, true, nil
 			},
 			expectedStatus: http.StatusUnauthorized,
@@ -268,7 +268,7 @@ func TestLoginHandler(t *testing.T) {
 					ID:       2,
 					Email:    testMerchantEmail,
 					Password: hashedPassword,
-					Role:     UserRoleMerchant,
+					Role:     "merchant",
 				}, true, nil
 			},
 			expectedStatus: http.StatusOK,
@@ -323,7 +323,7 @@ func TestGetMeHandler(t *testing.T) {
 				return User{
 					ID:        1,
 					Email:     testUserEmail,
-					Role:      UserRoleCustomer,
+					Role:      "customer",
 					CreatedAt: time.Now(),
 				}, true, nil
 			},
@@ -379,7 +379,7 @@ func TestGetMeHandler(t *testing.T) {
 				return User{
 					ID:        2,
 					Email:     testMerchantEmail,
-					Role:      UserRoleMerchant,
+					Role:      "merchant",
 					CreatedAt: time.Now(),
 				}, true, nil
 			},

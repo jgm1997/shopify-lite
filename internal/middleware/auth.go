@@ -47,34 +47,17 @@ func (m *AuthMiddleware) Protect(next http.Handler) http.Handler {
 }
 
 // RequireRole wraps a handler to require valid JWT token with specific role
-func (m *AuthMiddleware) RequireRole(role string, next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		header := r.Header.Get("Authorization")
-		if header == "" {
-			http.Error(w, "authorization header required", http.StatusUnauthorized)
-			return
-		}
-
-		tokenStr := strings.TrimPrefix(header, "Bearer ")
-		if tokenStr == header {
-			http.Error(w, "invalid authorization format", http.StatusUnauthorized)
-			return
-		}
-
-		claims, err := auth.VerifyToken(tokenStr, m.secret)
-		if err != nil {
-			http.Error(w, "invalid token", http.StatusUnauthorized)
-			return
-		}
-
-		if claims.Role != role {
-			http.Error(w, "forbidden", http.StatusForbidden)
-			return
-		}
-
-		ctx := context.WithValue(r.Context(), ClaimsKey, claims)
-		next.ServeHTTP(w, r.WithContext(ctx))
-	})
+func (m *AuthMiddleware) RequireRole(role string) func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return m.Protect(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			claims := GetClaims(r)
+			if claims.Role != role {
+				http.Error(w, "forbidden", http.StatusForbidden)
+				return
+			}
+			next.ServeHTTP(w, r)
+		}))
+	}
 }
 
 // GetClaims extracts claims from request context

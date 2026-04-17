@@ -3,7 +3,6 @@ package main
 import (
 	"context"
 	"database/sql"
-	"fmt"
 	"log"
 	"net/http"
 	"os"
@@ -23,12 +22,14 @@ import (
 func runMigrations(dsn string) error {
 	m, err := migrate.New("file://db/migrations", dsn)
 	if err != nil {
-		return fmt.Errorf("failed to create migration: %w", err)
+		log.Fatalf("failed to create migration: %v", err)
+		return err
 	}
 	defer m.Close()
 
 	if err := m.Up(); err != nil && err != migrate.ErrNoChange {
-		return fmt.Errorf("migration failed: %w", err)
+		log.Fatalf("migration failed: %v", err)
+		return err
 	}
 	return nil
 }
@@ -36,19 +37,19 @@ func runMigrations(dsn string) error {
 func main() {
 	dsn := os.Getenv("DATABASE_URL")
 	if dsn == "" {
-		fmt.Println("env DATABASE_URL is not set")
+		log.Println("env DATABASE_URL is not set")
 		return
 	}
 
 	jwtSecret := os.Getenv("JWT_SECRET")
 	if jwtSecret == "" {
-		fmt.Println("env JWT_SECRET is not set")
+		log.Println("env JWT_SECRET is not set")
 		return
 	}
 
 	conn, err := sql.Open("pgx", dsn)
 	if err != nil {
-		fmt.Printf("failed to connect to database: %v\n", err)
+		log.Fatalf("failed to connect to database: %v", err)
 		return
 	}
 	defer conn.Close()
@@ -58,16 +59,16 @@ func main() {
 	conn.SetConnMaxLifetime(5 * time.Minute)
 
 	if err := conn.Ping(); err != nil {
-		fmt.Printf("database connection error: %v\n", err)
+		log.Fatalf("database connection error: %v", err)
 		return
 	}
-	fmt.Println("database connected")
+	log.Println("database connected")
 
 	if err := runMigrations(dsn); err != nil {
-		fmt.Printf("migration error: %v\n", err)
+		log.Fatalf("migration error: %v", err)
 		return
 	}
-	fmt.Println("migrations completed successfully")
+	log.Println("migrations completed successfully")
 
 	usersStore := users.NewPsqlHandler(sqldb.New(conn))
 	usersHandler := users.NewHandler(usersStore, jwtSecret)

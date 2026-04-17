@@ -249,7 +249,7 @@ func TestRequireRoleMiddleware(t *testing.T) {
 			})
 
 			middleware := NewAuthMiddleware(tt.secret)
-			handler := middleware.RequireRole(tt.requiredRole, nextHandler)
+			handler := middleware.RequireRole(tt.requiredRole)(nextHandler)
 
 			req := httptest.NewRequest("GET", "/merchant-only", nil)
 			if tt.authHeader != "" {
@@ -372,7 +372,7 @@ func TestRequireRoleContextPropagation(t *testing.T) {
 			})
 
 			middleware := NewAuthMiddleware(testSecret)
-			handler := middleware.RequireRole(tt.role, nextHandler)
+			handler := middleware.RequireRole(tt.role)(nextHandler)
 
 			req := httptest.NewRequest("GET", "/merchant-only", nil)
 			req.Header.Set("Authorization", bearerPrefix+tt.token)

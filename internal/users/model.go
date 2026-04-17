@@ -1,29 +1,43 @@
 package users
 
 import (
-	"time"
-
 	"shopify-lite/internal/db"
+	"time"
 )
 
 type UserRole string
 
 const (
-	UserRoleMerchant UserRole = "merchant"
-	UserRoleCustomer UserRole = "customer"
+	RoleMerchant UserRole = "merchant"
+	RoleCustomer UserRole = "customer"
 )
 
-type PSQL struct {
-	queries *db.Queries
+type User struct {
+	ID        int
+	Email     string
+	Password  string // internal only — never serialised
+	Role      UserRole
+	CreatedAt time.Time
 }
 
-type User struct {
+// UserResponse is what we send to clients — no password
+type UserResponse struct {
 	ID        int       `json:"id"`
 	Email     string    `json:"email"`
-	Password  string    `json:"password"`
 	Role      UserRole  `json:"role"`
 	CreatedAt time.Time `json:"createdAt"`
 }
+
+func (u User) ToResponse() UserResponse {
+	return UserResponse{
+		ID:        u.ID,
+		Email:     u.Email,
+		Role:      u.Role,
+		CreatedAt: u.CreatedAt,
+	}
+}
+
+type Store struct{ queries *db.Queries }
 
 type Handler struct {
 	users     Users

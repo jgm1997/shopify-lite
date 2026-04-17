@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"shopify-lite/internal/auth"
+	"shopify-lite/internal/middleware"
 )
 
 func respondWithJson(w http.ResponseWriter, status int, data any) {
@@ -23,18 +24,9 @@ func decodeJSONBody(w http.ResponseWriter, r *http.Request, dst any) error {
 	return nil
 }
 
-func containsAtSymbol(s string) bool {
-	for _, c := range s {
-		if c == '@' {
-			return true
-		}
-	}
-	return false
-}
-
 func validateEmail(email string) bool {
 	// Basic email validation (can be improved with regex)
-	return len(email) > 3 && len(email) < 254 && containsAtSymbol(email)
+	return len(email) > 3 && len(email) < 254 && strings.Contains(email, "@")
 }
 
 func validatePassword(password string) bool {
@@ -103,21 +95,10 @@ func (h *Handler) LoginHandler(w http.ResponseWriter, r *http.Request) {
 		"token": token,
 	})
 }
-
 func (h *Handler) GetMeHandler(w http.ResponseWriter, r *http.Request) {
-	header := r.Header.Get("Authorization")
-	if header == "" {
-		http.Error(w, "authorization header required", http.StatusUnauthorized)
-		return
-	}
-	tokenStr := strings.TrimPrefix(header, "Bearer ")
-	if tokenStr == header {
-		http.Error(w, "invalid authorization format", http.StatusUnauthorized)
-		return
-	}
-	claims, err := auth.VerifyToken(tokenStr, h.jwtSecret)
-	if err != nil {
-		http.Error(w, "invalid token", http.StatusUnauthorized)
+	claims := middleware.GetClaims(r) // ✅ trust the middleware
+	if claims == nil {
+		http.Error(w, "unauthorized", http.StatusUnauthorized)
 		return
 	}
 	u, found, err := h.users.GetUserByID(r.Context(), claims.UserID)
@@ -129,5 +110,5 @@ func (h *Handler) GetMeHandler(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "user not found", http.StatusNotFound)
 		return
 	}
-	respondWithJson(w, http.StatusOK, u)
+	respondWithJson(w, http.StatusOK, u.ToResponse()) // ✅ no password
 }
