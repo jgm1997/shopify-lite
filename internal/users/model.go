@@ -15,12 +15,11 @@ const (
 type User struct {
 	ID        int
 	Email     string
-	Password  string // internal only — never serialised
+	Password  string
 	Role      UserRole
 	CreatedAt time.Time
 }
 
-// UserResponse is what we send to clients — no password
 type UserResponse struct {
 	ID        int       `json:"id"`
 	Email     string    `json:"email"`

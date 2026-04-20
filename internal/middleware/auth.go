@@ -20,7 +20,6 @@ func NewAuthMiddleware(secret string) *AuthMiddleware {
 	return &AuthMiddleware{secret: secret}
 }
 
-// Protect wraps a handler to require valid JWT token
 func (m *AuthMiddleware) Protect(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		header := r.Header.Get("Authorization")
@@ -46,7 +45,6 @@ func (m *AuthMiddleware) Protect(next http.Handler) http.Handler {
 	})
 }
 
-// RequireRole wraps a handler to require valid JWT token with specific role
 func (m *AuthMiddleware) RequireRole(role string) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return m.Protect(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -60,7 +58,6 @@ func (m *AuthMiddleware) RequireRole(role string) func(http.Handler) http.Handle
 	}
 }
 
-// GetClaims extracts claims from request context
 func GetClaims(r *http.Request) *auth.Claims {
 	claims, ok := r.Context().Value(ClaimsKey).(*auth.Claims)
 	if !ok {

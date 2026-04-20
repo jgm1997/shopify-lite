@@ -25,7 +25,6 @@ func decodeJSONBody(w http.ResponseWriter, r *http.Request, dst any) error {
 }
 
 func validateEmail(email string) bool {
-	// Basic email validation (can be improved with regex)
 	return len(email) > 3 && len(email) < 254 && strings.Contains(email, "@")
 }
 
@@ -96,7 +95,7 @@ func (h *Handler) LoginHandler(w http.ResponseWriter, r *http.Request) {
 	})
 }
 func (h *Handler) GetMeHandler(w http.ResponseWriter, r *http.Request) {
-	claims := middleware.GetClaims(r) // ✅ trust the middleware
+	claims := middleware.GetClaims(r)
 	if claims == nil {
 		http.Error(w, "unauthorized", http.StatusUnauthorized)
 		return
@@ -110,5 +109,5 @@ func (h *Handler) GetMeHandler(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "user not found", http.StatusNotFound)
 		return
 	}
-	respondWithJson(w, http.StatusOK, u.ToResponse()) // ✅ no password
+	respondWithJson(w, http.StatusOK, u.ToResponse())
 }
