@@ -3,6 +3,7 @@ package users
 import (
 	"context"
 	"database/sql"
+	"strings"
 	"shopify-lite/internal/auth"
 	"shopify-lite/internal/db"
 )
@@ -42,7 +43,27 @@ func (psql *Store) CreateUser(ctx context.Context, u User) (User, error) {
 	if err != nil {
 		return User{}, err
 	}
+	if u.Role == RoleMerchant {
+		_, err = psql.queries.CreateMerchant(ctx, db.CreateMerchantParams{
+			UserID:    created.ID,
+			StoreName: defaultStoreName(created.Email),
+			Description: sql.NullString{
+				Valid: false,
+			},
+		})
+		if err != nil {
+			return User{}, err
+		}
+	}
 	return toUser(created), nil
+}
+
+func defaultStoreName(email string) string {
+	localPart := strings.TrimSpace(strings.SplitN(email, "@", 2)[0])
+	if localPart == "" {
+		return "My Store"
+	}
+	return localPart + " Store"
 }
 
 func (psql *Store) GetUserByEmail(ctx context.Context, email string) (User, bool, error) {

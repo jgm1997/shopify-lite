@@ -1,47 +1,23 @@
 package users
 
 import (
-	"encoding/json"
 	"net/http"
-	"strings"
 
 	"shopify-lite/internal/auth"
 	"shopify-lite/internal/middleware"
+	"shopify-lite/internal/utils"
 )
-
-func respondWithJson(w http.ResponseWriter, status int, data any) {
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(status)
-	json.NewEncoder(w).Encode(data)
-}
-
-func decodeJSONBody(w http.ResponseWriter, r *http.Request, dst any) error {
-	defer r.Body.Close()
-	if err := json.NewDecoder(r.Body).Decode(dst); err != nil {
-		http.Error(w, "invalid request body", http.StatusBadRequest)
-		return err
-	}
-	return nil
-}
-
-func validateEmail(email string) bool {
-	return len(email) > 3 && len(email) < 254 && strings.Contains(email, "@")
-}
-
-func validatePassword(password string) bool {
-	return len(password) >= 8
-}
 
 func (h *Handler) RegisterHandler(w http.ResponseWriter, r *http.Request) {
 	var u User
-	if err := decodeJSONBody(w, r, &u); err != nil {
+	if err := utils.DecodeJSONBody(w, r, &u); err != nil {
 		return
 	}
-	if !validateEmail(u.Email) {
+	if !utils.ValidateEmail(u.Email) {
 		http.Error(w, "invalid email format", http.StatusBadRequest)
 		return
 	}
-	if !validatePassword(u.Password) {
+	if !utils.ValidatePassword(u.Password) {
 		http.Error(w, "password must be at least 8 characters long", http.StatusBadRequest)
 		return
 	}
@@ -56,7 +32,7 @@ func (h *Handler) RegisterHandler(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "failed to generate token", http.StatusInternalServerError)
 		return
 	}
-	respondWithJson(w, http.StatusCreated, map[string]any{
+	utils.RespondWithJson(w, http.StatusCreated, map[string]any{
 		"token": token,
 	})
 }
@@ -66,7 +42,7 @@ func (h *Handler) LoginHandler(w http.ResponseWriter, r *http.Request) {
 		Email    string `json:"email"`
 		Password string `json:"password"`
 	}
-	if err := decodeJSONBody(w, r, &u); err != nil {
+	if err := utils.DecodeJSONBody(w, r, &u); err != nil {
 		return
 	}
 	if u.Email == "" || u.Password == "" {
@@ -90,7 +66,7 @@ func (h *Handler) LoginHandler(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "failed to generate token", http.StatusInternalServerError)
 		return
 	}
-	respondWithJson(w, http.StatusOK, map[string]any{
+	utils.RespondWithJson(w, http.StatusOK, map[string]any{
 		"token": token,
 	})
 }
@@ -109,5 +85,5 @@ func (h *Handler) GetMeHandler(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "user not found", http.StatusNotFound)
 		return
 	}
-	respondWithJson(w, http.StatusOK, u.ToResponse())
+	utils.RespondWithJson(w, http.StatusOK, u.ToResponse())
 }

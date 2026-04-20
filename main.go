@@ -8,7 +8,9 @@ import (
 	"os"
 	"os/signal"
 	sqldb "shopify-lite/internal/db"
+	"shopify-lite/internal/merchants"
 	authm "shopify-lite/internal/middleware"
+	"shopify-lite/internal/products"
 	"shopify-lite/internal/users"
 	"syscall"
 	"time"
@@ -72,6 +74,10 @@ func main() {
 
 	usersStore := users.NewPsqlHandler(sqldb.New(conn))
 	usersHandler := users.NewHandler(usersStore, jwtSecret)
+	merchantsStore := merchants.NewPsqlHandler(sqldb.New(conn))
+	merchantsHandler := merchants.NewHandler(merchantsStore, jwtSecret)
+	productsStore := products.NewPsqlHandler(sqldb.New(conn))
+	productsHandler := products.NewHandler(productsStore, jwtSecret)
 	authMiddleware := authm.NewAuthMiddleware(jwtSecret)
 
 	r := chi.NewRouter()
@@ -83,7 +89,17 @@ func main() {
 	r.Post("/api/v1/auth/login", usersHandler.LoginHandler)
 
 	// Protected routes
-	r.With(authMiddleware.Protect).Get("/api/v1/me", usersHandler.GetMeHandler)
+	r.With(authMiddleware.RequireRole("merchant")).Get("/api/v1/me", usersHandler.GetMeHandler)
+	r.With(authMiddleware.RequireRole("merchant")).Get("/api/v1/merchants/me", merchantsHandler.GetMeMerchantHandler)
+	r.With(authMiddleware.RequireRole("merchant")).Get("/api/v1/merchants/me/products", productsHandler.GetMyProductsHandler)
+	r.With(authMiddleware.RequireRole("merchant")).Get("/api/v1/merchants/me/dashboard", productsHandler.GetMyProductsDashboardHandler)
+
+	r.With(authMiddleware.RequireRole("merchant")).Post("/api/v1/merchants", merchantsHandler.CreateMerchantHandler)
+	r.With(authMiddleware.RequireRole("merchant")).Post("/api/v1/merchants/me/products", productsHandler.CreateMyProductHandler)
+
+	r.With(authMiddleware.RequireRole("merchant")).Put("/api/v1/merchants/me/products/{id}", productsHandler.UpdateMyProductHandler)
+
+	r.With(authMiddleware.RequireRole("merchant")).Delete("/api/v1/merchants/me/products/{id}", productsHandler.DeleteMyProductHandler)
 
 	srv := &http.Server{Addr: ":8080", Handler: r}
 	go func() {

@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"shopify-lite/internal/auth"
+	"shopify-lite/internal/utils"
 )
 
 const (
@@ -458,9 +459,9 @@ func TestValidateEmail(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result := validateEmail(tt.email)
+			result := utils.ValidateEmail(tt.email)
 			if result != tt.valid {
-				t.Errorf("validateEmail(%s) = %v, want %v", tt.email, result, tt.valid)
+				t.Errorf("utils.ValidateEmail(%s) = %v, want %v", tt.email, result, tt.valid)
 			}
 		})
 	}
@@ -511,9 +512,9 @@ func TestValidatePassword(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result := validatePassword(tt.password)
+			result := utils.ValidatePassword(tt.password)
 			if result != tt.valid {
-				t.Errorf("validatePassword(%s) = %v, want %v", tt.password, result, tt.valid)
+				t.Errorf("utils.ValidatePassword(%s) = %v, want %v", tt.password, result, tt.valid)
 			}
 		})
 	}

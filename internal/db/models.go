@@ -5,6 +5,7 @@
 package db
 
 import (
+	"database/sql"
 	"database/sql/driver"
 	"fmt"
 	"time"
@@ -50,6 +51,24 @@ func (ns NullUserRole) Value() (driver.Value, error) {
 		return nil, nil
 	}
 	return string(ns.UserRole), nil
+}
+
+type Merchant struct {
+	ID          int32
+	UserID      int32
+	StoreName   string
+	Description sql.NullString
+	CreatedAt   time.Time
+}
+
+type Product struct {
+	ID          int32
+	MerchantID  int32
+	Name        string
+	Description sql.NullString
+	Price       float64
+	Stock       int32
+	CreatedAt   time.Time
 }
 
 type User struct {
