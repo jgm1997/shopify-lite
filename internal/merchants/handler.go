@@ -7,11 +7,16 @@ import (
 )
 
 func (h *Handler) CreateMerchantHandler(w http.ResponseWriter, r *http.Request) {
+	claims := middleware.GetClaims(r)
+	if claims == nil {
+		http.Error(w, "unauthorized", http.StatusUnauthorized)
+		return
+	}
 	var m Merchant
 	if err := utils.DecodeJSONBody(w, r, &m); err != nil {
 		return
 	}
-
+	m.UserID = claims.UserID
 	created, err := h.merchants.CreateMerchant(r.Context(), m)
 	if err != nil {
 		http.Error(w, "failed to create merchant", http.StatusInternalServerError)

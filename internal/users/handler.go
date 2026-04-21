@@ -27,7 +27,11 @@ func (h *Handler) RegisterHandler(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "failed to create user", http.StatusInternalServerError)
 		return
 	}
-	token, err := auth.GenerateToken(created.ID, string(created.Role), h.jwtSecret)
+	merchantID := 0
+	if created.Role == RoleMerchant {
+		merchantID, _ = h.users.GetMerchantIDByUserID(r.Context(), created.ID)
+	}
+	token, err := auth.GenerateToken(created.ID, merchantID, string(created.Role), h.jwtSecret)
 	if err != nil {
 		http.Error(w, "failed to generate token", http.StatusInternalServerError)
 		return
@@ -61,7 +65,11 @@ func (h *Handler) LoginHandler(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "invalid email or password", http.StatusUnauthorized)
 		return
 	}
-	token, err := auth.GenerateToken(user.ID, string(user.Role), h.jwtSecret)
+	merchantID := 0
+	if user.Role == RoleMerchant {
+		merchantID, _ = h.users.GetMerchantIDByUserID(r.Context(), user.ID)
+	}
+	token, err := auth.GenerateToken(user.ID, merchantID, string(user.Role), h.jwtSecret)
 	if err != nil {
 		http.Error(w, "failed to generate token", http.StatusInternalServerError)
 		return

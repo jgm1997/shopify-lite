@@ -1,17 +1,15 @@
 package products
 
 import (
-	"context"
 	"net/http"
 	"shopify-lite/internal/middleware"
 	"shopify-lite/internal/utils"
+	"strconv"
+
+	"github.com/go-chi/chi/v5"
 )
 
 const failedFetchMerchant = "failed to fetch merchant"
-
-func (h *Handler) getMerchantByUserID(ctx context.Context, userID int) (int, error) {
-	return h.products.GetMerchantIDByUserID(ctx, userID)
-}
 
 func (h *Handler) GetMyProductsHandler(w http.ResponseWriter, r *http.Request) {
 	claims := middleware.GetClaims(r)
@@ -20,13 +18,7 @@ func (h *Handler) GetMyProductsHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	merchantID, err := h.getMerchantByUserID(r.Context(), claims.UserID)
-	if err != nil {
-		http.Error(w, failedFetchMerchant, http.StatusInternalServerError)
-		return
-	}
-
-	products, err := h.products.GetMyProducts(r.Context(), merchantID)
+	products, err := h.products.GetMyProducts(r.Context(), claims.MerchantID)
 	if err != nil {
 		http.Error(w, "failed to fetch products", http.StatusInternalServerError)
 		return
@@ -47,23 +39,22 @@ func (h *Handler) CreateMyProductHandler(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	merchantID, err := h.products.GetMerchantIDByUserID(r.Context(), claims.UserID)
-	if err != nil {
-		http.Error(w, failedFetchMerchant, http.StatusInternalServerError)
-		return
-	}
-
-	p.MerchantID = merchantID
+	p.MerchantID = claims.MerchantID
 	created, err := h.products.CreateMyProduct(r.Context(), p)
 	if err != nil {
 		http.Error(w, "failed to create product", http.StatusInternalServerError)
 		return
 	}
 
-	utils.RespondWithJson(w, http.StatusOK, created)
+	utils.RespondWithJson(w, http.StatusCreated, created)
 }
 
 func (h *Handler) UpdateMyProductHandler(w http.ResponseWriter, r *http.Request) {
+	id, err := strconv.Atoi(chi.URLParam(r, "id"))
+	if err != nil {
+		http.Error(w, "invalid product ID", http.StatusBadRequest)
+		return
+	}
 	claims := middleware.GetClaims(r)
 	if claims == nil {
 		http.Error(w, "unauthorized", http.StatusUnauthorized)
@@ -74,17 +65,16 @@ func (h *Handler) UpdateMyProductHandler(w http.ResponseWriter, r *http.Request)
 	if err := utils.DecodeJSONBody(w, r, &p); err != nil {
 		return
 	}
+	p.ID = id
+	p.MerchantID = claims.MerchantID
 
-	merchantID, err := h.products.GetMerchantIDByUserID(r.Context(), claims.UserID)
-	if err != nil {
-		http.Error(w, failedFetchMerchant, http.StatusInternalServerError)
-		return
-	}
-
-	p.MerchantID = merchantID
-	updated, err := h.products.UpdateMyProduct(r.Context(), p)
+	updated, found, err := h.products.UpdateMyProduct(r.Context(), p)
 	if err != nil {
 		http.Error(w, "failed to update product", http.StatusInternalServerError)
+		return
+	}
+	if !found {
+		http.Error(w, "product not found or not owned by merchant", http.StatusNotFound)
 		return
 	}
 
@@ -92,31 +82,28 @@ func (h *Handler) UpdateMyProductHandler(w http.ResponseWriter, r *http.Request)
 }
 
 func (h *Handler) DeleteMyProductHandler(w http.ResponseWriter, r *http.Request) {
+	id, err := strconv.Atoi(chi.URLParam(r, "id"))
+	if err != nil {
+		http.Error(w, "invalid product ID", http.StatusBadRequest)
+		return
+	}
 	claims := middleware.GetClaims(r)
 	if claims == nil {
 		http.Error(w, "unauthorized", http.StatusUnauthorized)
 		return
 	}
 
-	var p Product
-	if err := utils.DecodeJSONBody(w, r, &p); err != nil {
-		return
-	}
-
-	merchantID, err := h.products.GetMerchantIDByUserID(r.Context(), claims.UserID)
-	if err != nil {
-		http.Error(w, failedFetchMerchant, http.StatusInternalServerError)
-		return
-	}
-
-	p.MerchantID = merchantID
-	deleted, err := h.products.DeleteMyProduct(r.Context(), p.ID)
+	deleted, err := h.products.DeleteMyProduct(r.Context(), id, claims.MerchantID)
 	if err != nil {
 		http.Error(w, "failed to delete product", http.StatusInternalServerError)
 		return
 	}
+	if !deleted {
+		http.Error(w, "product not found or not owned by merchant", http.StatusNotFound)
+		return
+	}
 
-	utils.RespondWithJson(w, http.StatusOK, map[string]bool{"deleted": deleted})
+	w.WriteHeader(http.StatusNoContent)
 }
 
 func (h *Handler) GetMyProductsDashboardHandler(w http.ResponseWriter, r *http.Request) {
@@ -126,13 +113,7 @@ func (h *Handler) GetMyProductsDashboardHandler(w http.ResponseWriter, r *http.R
 		return
 	}
 
-	merchantID, err := h.products.GetMerchantIDByUserID(r.Context(), claims.UserID)
-	if err != nil {
-		http.Error(w, failedFetchMerchant, http.StatusInternalServerError)
-		return
-	}
-
-	dashboard, err := h.products.GetMyProductsDashboard(r.Context(), merchantID)
+	dashboard, err := h.products.GetMyProductsDashboard(r.Context(), claims.MerchantID)
 	if err != nil {
 		http.Error(w, "failed to fetch dashboard", http.StatusInternalServerError)
 		return

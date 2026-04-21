@@ -8,8 +8,9 @@ import (
 )
 
 type Claims struct {
-	UserID int    `json:"userId"`
-	Role   string `json:"role"`
+	UserID     int    `json:"userId"`
+	MerchantID int    `json:"merchantId"`
+	Role       string `json:"role"`
 	jwt.RegisteredClaims
 }
 
@@ -26,10 +27,11 @@ func CheckPassword(hash, password string) bool {
 	return err == nil
 }
 
-func GenerateToken(userID int, role string, secret string) (string, error) {
+func GenerateToken(userID, merchantID int, role, secret string) (string, error) {
 	claims := Claims{
-		UserID: userID,
-		Role:   role,
+		UserID:     userID,
+		MerchantID: merchantID,
+		Role:       role,
 		RegisteredClaims: jwt.RegisteredClaims{
 			ExpiresAt: jwt.NewNumericDate(time.Now().Add(24 * time.Hour)),
 		},

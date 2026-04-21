@@ -38,8 +38,8 @@ func assertClaimsFromToken(t *testing.T, token string, expectedID int, expectedR
 
 func TestProtectMiddleware(t *testing.T) {
 	// Generate valid tokens
-	validToken, _ := auth.GenerateToken(1, "customer", testSecret)
-	merchantToken, _ := auth.GenerateToken(2, "merchant", testSecret)
+	validToken, _ := auth.GenerateToken(1, 11, "customer", testSecret)
+	merchantToken, _ := auth.GenerateToken(2, 22, "merchant", testSecret)
 
 	tests := []struct {
 		name           string
@@ -145,9 +145,9 @@ func TestProtectMiddleware(t *testing.T) {
 }
 
 func TestRequireRoleMiddleware(t *testing.T) {
-	customerToken, _ := auth.GenerateToken(1, "customer", testSecret)
-	merchantToken, _ := auth.GenerateToken(2, "merchant", testSecret)
-	adminToken, _ := auth.GenerateToken(3, "admin", testSecret)
+	customerToken, _ := auth.GenerateToken(1, 11, "customer", testSecret)
+	merchantToken, _ := auth.GenerateToken(2, 22, "merchant", testSecret)
+	adminToken, _ := auth.GenerateToken(3, 33, "admin", testSecret)
 
 	tests := []struct {
 		name           string
@@ -271,7 +271,7 @@ func TestRequireRoleMiddleware(t *testing.T) {
 }
 
 func TestGetClaims(t *testing.T) {
-	validToken, _ := auth.GenerateToken(42, "merchant", testSecret)
+	validToken, _ := auth.GenerateToken(42, 42, "merchant", testSecret)
 
 	t.Run("valid claims in context", func(t *testing.T) {
 		assertClaimsFromToken(t, validToken, 42, "merchant")
@@ -286,7 +286,7 @@ func TestGetClaims(t *testing.T) {
 }
 
 func TestProtectMiddlewareContextPropagation(t *testing.T) {
-	validToken, _ := auth.GenerateToken(10, "customer", testSecret)
+	validToken, _ := auth.GenerateToken(10, 10, "customer", testSecret)
 
 	tests := []struct {
 		name        string
@@ -336,7 +336,7 @@ func TestProtectMiddlewareContextPropagation(t *testing.T) {
 }
 
 func TestRequireRoleContextPropagation(t *testing.T) {
-	merchantToken, _ := auth.GenerateToken(20, "merchant", testSecret)
+	merchantToken, _ := auth.GenerateToken(20, 20, "merchant", testSecret)
 
 	tests := []struct {
 		name        string

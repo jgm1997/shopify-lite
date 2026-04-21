@@ -44,7 +44,7 @@ returning "id",
              stock,
              created_at ;
 
--- name: DeleteProduct :exec
+-- name: DeleteProduct :execrows
 delete from products
  where id = $1
    and merchant_id = $2;

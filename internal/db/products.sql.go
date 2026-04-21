@@ -59,7 +59,7 @@ func (q *Queries) CreateProduct(ctx context.Context, arg CreateProductParams) (P
 	return i, err
 }
 
-const deleteProduct = `-- name: DeleteProduct :exec
+const deleteProduct = `-- name: DeleteProduct :execrows
 delete from products
  where id = $1
    and merchant_id = $2
@@ -70,9 +70,12 @@ type DeleteProductParams struct {
 	MerchantID int32
 }
 
-func (q *Queries) DeleteProduct(ctx context.Context, arg DeleteProductParams) error {
-	_, err := q.db.ExecContext(ctx, deleteProduct, arg.ID, arg.MerchantID)
-	return err
+func (q *Queries) DeleteProduct(ctx context.Context, arg DeleteProductParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, deleteProduct, arg.ID, arg.MerchantID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
 }
 
 const getMerchantsProducts = `-- name: GetMerchantsProducts :many

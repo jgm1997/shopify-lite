@@ -3,19 +3,21 @@ package users
 import (
 	"context"
 	"database/sql"
-	"strings"
 	"shopify-lite/internal/auth"
 	"shopify-lite/internal/db"
+	"strings"
 )
 
 type Users interface {
 	CreateUser(ctx context.Context, u User) (User, error)
 	GetUserByEmail(ctx context.Context, email string) (User, bool, error)
 	GetUserByID(ctx context.Context, id int) (User, bool, error)
+	GetMerchantIDByUserID(ctx context.Context, userID int) (int, error)
 }
 
-func NewPsqlHandler(queries *db.Queries) *Store {
+func NewPsqlHandler(db *sql.DB, queries *db.Queries) *Store {
 	return &Store{
+		db:      db,
 		queries: queries,
 	}
 }
@@ -35,7 +37,14 @@ func (psql *Store) CreateUser(ctx context.Context, u User) (User, error) {
 	if err != nil {
 		return User{}, err
 	}
-	created, err := psql.queries.CreateUser(ctx, db.CreateUserParams{
+	tx, err := psql.db.BeginTx(ctx, nil)
+	if err != nil {
+		return User{}, err
+	}
+	defer tx.Rollback()
+
+	qtx := psql.queries.WithTx(tx)
+	created, err := qtx.CreateUser(ctx, db.CreateUserParams{
 		Email:        u.Email,
 		PasswordHash: passwordHash,
 		Role:         db.UserRole(u.Role),
@@ -43,19 +52,15 @@ func (psql *Store) CreateUser(ctx context.Context, u User) (User, error) {
 	if err != nil {
 		return User{}, err
 	}
+
 	if u.Role == RoleMerchant {
-		_, err = psql.queries.CreateMerchant(ctx, db.CreateMerchantParams{
-			UserID:    created.ID,
-			StoreName: defaultStoreName(created.Email),
-			Description: sql.NullString{
-				Valid: false,
-			},
+		_, err = qtx.CreateMerchant(ctx, db.CreateMerchantParams{
+			UserID:      created.ID,
+			StoreName:   "",
+			Description: sql.NullString{},
 		})
-		if err != nil {
-			return User{}, err
-		}
 	}
-	return toUser(created), nil
+	return toUser(created), tx.Commit()
 }
 
 func defaultStoreName(email string) string {
@@ -86,4 +91,12 @@ func (psql *Store) GetUserByID(ctx context.Context, id int) (User, bool, error) 
 		return User{}, false, err
 	}
 	return toUser(row), true, nil
+}
+
+func (psql *Store) GetMerchantIDByUserID(ctx context.Context, userID int) (int, error) {
+	row, err := psql.queries.GetMerchantByUserID(ctx, int32(userID))
+	if err != nil {
+		return 0, err
+	}
+	return int(row.ID), nil
 }

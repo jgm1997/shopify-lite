@@ -36,6 +36,7 @@ func (psql *Store) CreateMyProduct(ctx context.Context, product Product) (Produc
 			Valid:  product.Description != "",
 		},
 		Price: float64(product.Price),
+		Stock: int32(product.Stock),
 	})
 	if err != nil {
 		return Product{}, err
@@ -43,7 +44,7 @@ func (psql *Store) CreateMyProduct(ctx context.Context, product Product) (Produc
 	return toProduct(created), nil
 }
 
-func (psql *Store) UpdateMyProduct(ctx context.Context, product Product) (Product, error) {
+func (psql *Store) UpdateMyProduct(ctx context.Context, product Product) (Product, bool, error) {
 	row, err := psql.queries.UpdateProduct(ctx, db.UpdateProductParams{
 		ID:         int32(product.ID),
 		MerchantID: int32(product.MerchantID),
@@ -53,22 +54,26 @@ func (psql *Store) UpdateMyProduct(ctx context.Context, product Product) (Produc
 			Valid:  product.Description != "",
 		},
 		Price: float64(product.Price),
+		Stock: int32(product.Stock),
 	})
 	if err != nil {
-		return Product{}, err
+		if err == sql.ErrNoRows {
+			return Product{}, false, nil
+		}
+		return Product{}, false, err
 	}
-	return toProduct(row), nil
+	return toProduct(row), true, nil
 }
 
-func (psql *Store) DeleteMyProduct(ctx context.Context, productID int) (bool, error) {
-	err := psql.queries.DeleteProduct(ctx, db.DeleteProductParams{
+func (psql *Store) DeleteMyProduct(ctx context.Context, productID, merchantID int) (bool, error) {
+	n, err := psql.queries.DeleteProduct(ctx, db.DeleteProductParams{
 		ID:         int32(productID),
-		MerchantID: int32(productID),
+		MerchantID: int32(merchantID),
 	})
 	if err != nil {
 		return false, err
 	}
-	return true, nil
+	return n > 0, nil
 }
 
 func (psql *Store) GetMyProductsDashboard(ctx context.Context, merchantID int) (ProductMetrics, error) {

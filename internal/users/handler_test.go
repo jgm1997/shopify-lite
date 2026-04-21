@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"shopify-lite/internal/auth"
+	"shopify-lite/internal/middleware"
 	"shopify-lite/internal/utils"
 )
 
@@ -19,11 +20,20 @@ const (
 	testMerchantEmail    = "merchant@example.com"
 	testSecurePassword   = "SecurePassword123!"
 	testCorrectPassword  = "correctPassword123!"
-	bearerPrefix         = "Bearer "
 	errUnmarshalFmt      = "Failed to unmarshal response: %v"
 	errExpectedStatusFmt = "Expected status %d, got %d"
 	errDatabaseErrorMsg  = "database error"
 )
+
+func withSecret(r *http.Request) *http.Request {
+	ctx := context.WithValue(r.Context(), "jwtSecret", testJWTSecret)
+	return r.WithContext(ctx)
+}
+
+func withClaims(r *http.Request, claims *auth.Claims) *http.Request {
+	ctx := context.WithValue(r.Context(), middleware.ClaimsKey, claims)
+	return r.WithContext(ctx)
+}
 
 func assertTokenInBody(t *testing.T, body string) {
 	t.Helper()
@@ -54,9 +64,10 @@ func mockCreateUserFn(wantErr error, resp User) func(context.Context, User) (Use
 
 // MockUsersStore implements Users interface for testing
 type MockUsersStore struct {
-	createUserFunc     func(ctx context.Context, u User) (User, error)
-	getUserByEmailFunc func(ctx context.Context, email string) (User, bool, error)
-	getUserByIDFunc    func(ctx context.Context, id int) (User, bool, error)
+	createUserFunc            func(ctx context.Context, u User) (User, error)
+	getUserByEmailFunc        func(ctx context.Context, email string) (User, bool, error)
+	getUserByIDFunc           func(ctx context.Context, id int) (User, bool, error)
+	getMerchantIDByUserIDFunc func(ctx context.Context, userID int) (int, error)
 }
 
 func (m *MockUsersStore) CreateUser(ctx context.Context, u User) (User, error) {
@@ -78,6 +89,13 @@ func (m *MockUsersStore) GetUserByID(ctx context.Context, id int) (User, bool, e
 		return m.getUserByIDFunc(ctx, id)
 	}
 	return User{}, false, nil
+}
+
+func (m *MockUsersStore) GetMerchantIDByUserID(ctx context.Context, userID int) (int, error) {
+	if m.getMerchantIDByUserIDFunc != nil {
+		return m.getMerchantIDByUserIDFunc(ctx, userID)
+	}
+	return 0, nil
 }
 
 func TestRegisterHandler(t *testing.T) {
@@ -177,6 +195,7 @@ func TestRegisterHandler(t *testing.T) {
 
 			req := httptest.NewRequest("POST", "/auth/register", bytes.NewReader(reqBody))
 			req.Header.Set("Content-Type", "application/json")
+			req = withSecret(req)
 			w := httptest.NewRecorder()
 
 			handler.RegisterHandler(w, req)
@@ -292,6 +311,7 @@ func TestLoginHandler(t *testing.T) {
 
 			req := httptest.NewRequest("POST", "/auth/login", bytes.NewReader(reqBody))
 			req.Header.Set("Content-Type", "application/json")
+			req = withSecret(req)
 			w := httptest.NewRecorder()
 
 			handler.LoginHandler(w, req)
@@ -306,20 +326,19 @@ func TestLoginHandler(t *testing.T) {
 }
 
 func TestGetMeHandler(t *testing.T) {
-	// Generate valid token
-	validToken, _ := auth.GenerateToken(1, "customer", testJWTSecret)
-	tokenWithMerchantRole, _ := auth.GenerateToken(2, "merchant", testJWTSecret)
+	customerClaims := &auth.Claims{UserID: 1, Role: "customer"}
+	merchantClaims := &auth.Claims{UserID: 2, Role: "merchant"}
 
 	tests := []struct {
 		name            string
-		authHeader      string
+		claims          *auth.Claims
 		mockGetUserFunc func(ctx context.Context, id int) (User, bool, error)
 		expectedStatus  int
 		checkResponse   func(t *testing.T, body string)
 	}{
 		{
-			name:       "successful get me",
-			authHeader: bearerPrefix + validToken,
+			name:   "successful get me",
+			claims: customerClaims,
 			mockGetUserFunc: func(_ context.Context, _ int) (User, bool, error) {
 				return User{
 					ID:        1,
@@ -343,39 +362,29 @@ func TestGetMeHandler(t *testing.T) {
 			},
 		},
 		{
-			name:           "missing authorization header",
-			authHeader:     "",
+			name:           "no claims in context",
+			claims:         nil,
 			expectedStatus: http.StatusUnauthorized,
 		},
 		{
-			name:           "invalid token format",
-			authHeader:     "InvalidToken",
-			expectedStatus: http.StatusUnauthorized,
-		},
-		{
-			name:           "malformed bearer token",
-			authHeader:     bearerPrefix + "invalid.token.here",
-			expectedStatus: http.StatusUnauthorized,
-		},
-		{
-			name:       "user not found",
-			authHeader: bearerPrefix + validToken,
+			name:   "user not found",
+			claims: customerClaims,
 			mockGetUserFunc: func(_ context.Context, _ int) (User, bool, error) {
 				return User{}, false, nil
 			},
 			expectedStatus: http.StatusNotFound,
 		},
 		{
-			name:       errDatabaseErrorMsg,
-			authHeader: bearerPrefix + validToken,
+			name:   errDatabaseErrorMsg,
+			claims: customerClaims,
 			mockGetUserFunc: func(_ context.Context, _ int) (User, bool, error) {
 				return User{}, false, ErrDatabaseError
 			},
 			expectedStatus: http.StatusInternalServerError,
 		},
 		{
-			name:       "merchant user get me",
-			authHeader: bearerPrefix + tokenWithMerchantRole,
+			name:   "merchant user get me",
+			claims: merchantClaims,
 			mockGetUserFunc: func(_ context.Context, _ int) (User, bool, error) {
 				return User{
 					ID:        2,
@@ -397,8 +406,8 @@ func TestGetMeHandler(t *testing.T) {
 			handler := NewHandler(mock, testJWTSecret)
 
 			req := httptest.NewRequest("GET", "/api/v1/me", nil)
-			if tt.authHeader != "" {
-				req.Header.Set("Authorization", tt.authHeader)
+			if tt.claims != nil {
+				req = withClaims(req, tt.claims)
 			}
 			w := httptest.NewRecorder()
 

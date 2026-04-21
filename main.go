@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"database/sql"
+	"fmt"
 	"log"
 	"net/http"
 	"os"
@@ -24,14 +25,12 @@ import (
 func runMigrations(dsn string) error {
 	m, err := migrate.New("file://db/migrations", dsn)
 	if err != nil {
-		log.Fatalf("failed to create migration: %v", err)
-		return err
+		return fmt.Errorf("failed to create migration: %v", err)
 	}
 	defer m.Close()
 
 	if err := m.Up(); err != nil && err != migrate.ErrNoChange {
-		log.Fatalf("migration failed: %v", err)
-		return err
+		return fmt.Errorf("migration failed: %v", err)
 	}
 	return nil
 }
@@ -52,7 +51,6 @@ func main() {
 	conn, err := sql.Open("pgx", dsn)
 	if err != nil {
 		log.Fatalf("failed to connect to database: %v", err)
-		return
 	}
 	defer conn.Close()
 
@@ -62,22 +60,20 @@ func main() {
 
 	if err := conn.Ping(); err != nil {
 		log.Fatalf("database connection error: %v", err)
-		return
 	}
 	log.Println("database connected")
 
 	if err := runMigrations(dsn); err != nil {
 		log.Fatalf("migration error: %v", err)
-		return
 	}
 	log.Println("migrations completed successfully")
 
-	usersStore := users.NewPsqlHandler(sqldb.New(conn))
+	usersStore := users.NewPsqlHandler(conn, sqldb.New(conn))
 	usersHandler := users.NewHandler(usersStore, jwtSecret)
 	merchantsStore := merchants.NewPsqlHandler(sqldb.New(conn))
-	merchantsHandler := merchants.NewHandler(merchantsStore, jwtSecret)
+	merchantsHandler := merchants.NewHandler(merchantsStore)
 	productsStore := products.NewPsqlHandler(sqldb.New(conn))
-	productsHandler := products.NewHandler(productsStore, jwtSecret)
+	productsHandler := products.NewHandler(productsStore)
 	authMiddleware := authm.NewAuthMiddleware(jwtSecret)
 
 	r := chi.NewRouter()
@@ -89,12 +85,11 @@ func main() {
 	r.Post("/api/v1/auth/login", usersHandler.LoginHandler)
 
 	// Protected routes
-	r.With(authMiddleware.RequireRole("merchant")).Get("/api/v1/me", usersHandler.GetMeHandler)
+	r.With(authMiddleware.Protect).Get("/api/v1/me", usersHandler.GetMeHandler)
 	r.With(authMiddleware.RequireRole("merchant")).Get("/api/v1/merchants/me", merchantsHandler.GetMeMerchantHandler)
 	r.With(authMiddleware.RequireRole("merchant")).Get("/api/v1/merchants/me/products", productsHandler.GetMyProductsHandler)
 	r.With(authMiddleware.RequireRole("merchant")).Get("/api/v1/merchants/me/dashboard", productsHandler.GetMyProductsDashboardHandler)
 
-	r.With(authMiddleware.RequireRole("merchant")).Post("/api/v1/merchants", merchantsHandler.CreateMerchantHandler)
 	r.With(authMiddleware.RequireRole("merchant")).Post("/api/v1/merchants/me/products", productsHandler.CreateMyProductHandler)
 
 	r.With(authMiddleware.RequireRole("merchant")).Put("/api/v1/merchants/me/products/{id}", productsHandler.UpdateMyProductHandler)

@@ -7,19 +7,18 @@ import (
 
 type Merchant struct {
 	ID          int       `json:"id"`
-	UserID      int       `json:"user_id"`
-	StoreName   string    `json:"store_name"`
+	UserID      int       `json:"userId"`
+	StoreName   string    `json:"storeName"`
 	Description string    `json:"description"`
-	CreatedAt   time.Time `json:"created_at"`
+	CreatedAt   time.Time `json:"createdAt"`
 }
 
 type Store struct{ queries *db.Queries }
 
 type Handler struct {
 	merchants Merchants
-	jwtSecret string
 }
 
-func NewHandler(merchants Merchants, jwtSecret string) *Handler {
-	return &Handler{merchants: merchants, jwtSecret: jwtSecret}
+func NewHandler(merchants Merchants) *Handler {
+	return &Handler{merchants: merchants}
 }

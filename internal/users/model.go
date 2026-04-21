@@ -1,6 +1,7 @@
 package users
 
 import (
+	"database/sql"
 	"shopify-lite/internal/db"
 	"time"
 )
@@ -36,7 +37,10 @@ func (u User) ToResponse() UserResponse {
 	}
 }
 
-type Store struct{ queries *db.Queries }
+type Store struct {
+	db      *sql.DB
+	queries *db.Queries
+}
 
 type Handler struct {
 	users     Users

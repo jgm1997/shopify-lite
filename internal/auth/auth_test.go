@@ -12,7 +12,7 @@ const (
 	correctPwd = "correctPassword123!"
 )
 
-func assertTokenClaims(t *testing.T, token string, expectedID int, expectedRole, secret string) {
+func assertTokenClaims(t *testing.T, token string, expectedID, expectedMerchantID int, expectedRole, secret string) {
 	t.Helper()
 	claims := &Claims{}
 	parsedToken, _ := jwt.ParseWithClaims(token, claims, func(tok *jwt.Token) (interface{}, error) {
@@ -26,6 +26,9 @@ func assertTokenClaims(t *testing.T, token string, expectedID int, expectedRole,
 	}
 	if claims.Role != expectedRole {
 		t.Errorf("Token Role mismatch: got %s, want %s", claims.Role, expectedRole)
+	}
+	if claims.MerchantID != expectedMerchantID {
+		t.Errorf("Token MerchantID mismatch: got %d, want %d", claims.MerchantID, expectedMerchantID)
 	}
 }
 
@@ -124,59 +127,67 @@ func TestCheckPassword(t *testing.T) {
 
 func TestGenerateToken(t *testing.T) {
 	tests := []struct {
-		name      string
-		userID    int
-		role      string
-		secret    string
-		expectErr bool
+		name       string
+		userID     int
+		role       string
+		secret     string
+		merchantID int
+		expectErr  bool
 	}{
 		{
-			name:      "valid token generation",
-			userID:    1,
-			role:      "merchant",
-			secret:    testSecret,
-			expectErr: false,
+			name:       "valid token generation",
+			userID:     1,
+			merchantID: 1,
+			role:       "merchant",
+			secret:     testSecret,
+			expectErr:  false,
 		},
 		{
-			name:      "customer role",
-			userID:    42,
+			name:       "customer role",
+			userID:     42,
+			merchantID: 0,
+			role:       "customer",
+			secret:     testSecret,
+			expectErr:  false,
+		},
+		{
+			name:       "empty secret",
+			userID:     1,
+			merchantID: 1,
+			role:       "merchant",
+			secret:     "",
+			expectErr:  false,
+		},
+		{
+			name:       "zero user id",
+			userID:     0,
+			merchantID: 0,
+
 			role:      "customer",
 			secret:    testSecret,
 			expectErr: false,
 		},
 		{
-			name:      "empty secret",
-			userID:    1,
-			role:      "merchant",
-			secret:    "",
-			expectErr: false,
+			name:       "negative user id",
+			userID:     -1,
+			merchantID: -1,
+			role:       "merchant",
+			secret:     testSecret,
+			expectErr:  false,
 		},
 		{
-			name:      "zero user id",
-			userID:    0,
-			role:      "customer",
-			secret:    testSecret,
-			expectErr: false,
-		},
-		{
-			name:      "negative user id",
-			userID:    -1,
-			role:      "merchant",
-			secret:    testSecret,
-			expectErr: false,
-		},
-		{
-			name:      "long role string",
-			userID:    99,
-			role:      "super_admin_merchant_customer",
-			secret:    testSecret,
-			expectErr: false,
+			name:       "long role string",
+			userID:     99,
+			merchantID: 99,
+			role:       "super_admin_merchant_customer",
+			secret:     testSecret,
+			expectErr:  false,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			token, err := GenerateToken(tt.userID, tt.role, tt.secret)
+			token, err := GenerateToken(tt.userID, tt.merchantID, tt.role, tt.secret)
 
 			if (err != nil) != tt.expectErr {
 				t.Errorf("GenerateToken() error = %v, expectErr %v", err, tt.expectErr)
@@ -188,7 +199,7 @@ func TestGenerateToken(t *testing.T) {
 			}
 
 			if err == nil {
-				assertTokenClaims(t, token, tt.userID, tt.role, tt.secret)
+				assertTokenClaims(t, token, tt.userID, tt.merchantID, tt.role, tt.secret)
 			}
 		})
 	}
@@ -196,7 +207,7 @@ func TestGenerateToken(t *testing.T) {
 
 func TestVerifyToken(t *testing.T) {
 	// Generate a valid token
-	validToken, _ := GenerateToken(1, "merchant", testSecret)
+	validToken, _ := GenerateToken(1, 1, "merchant", testSecret)
 
 	tests := []struct {
 		name        string
@@ -265,7 +276,7 @@ func TestTokenExpiration(t *testing.T) {
 	secret := testSecret
 
 	// Generate token with standard 24 hour expiration
-	token, err := GenerateToken(1, "merchant", secret)
+	token, err := GenerateToken(1, 1, "merchant", secret)
 	if err != nil {
 		t.Fatalf("GenerateToken failed: %v", err)
 	}
@@ -330,30 +341,34 @@ func TestGenerateAndVerifyTokenConsistency(t *testing.T) {
 	secret := testSecret
 
 	tests := []struct {
-		name   string
-		userID int
-		role   string
+		name       string
+		userID     int
+		merchantID int
+		role       string
 	}{
 		{
-			name:   "merchant user",
-			userID: 1,
-			role:   "merchant",
+			name:       "merchant user",
+			userID:     1,
+			merchantID: 1,
+			role:       "merchant",
 		},
 		{
-			name:   "customer user",
-			userID: 2,
-			role:   "customer",
+			name:       "customer user",
+			userID:     2,
+			merchantID: 0,
+			role:       "customer",
 		},
 		{
-			name:   "large user id",
-			userID: 999999,
-			role:   "merchant",
+			name:       "large user id",
+			userID:     999999,
+			merchantID: 1,
+			role:       "merchant",
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			token, err := GenerateToken(tt.userID, tt.role, secret)
+			token, err := GenerateToken(tt.userID, tt.merchantID, tt.role, secret)
 			if err != nil {
 				t.Fatalf("GenerateToken failed: %v", err)
 			}
