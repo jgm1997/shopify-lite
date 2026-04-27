@@ -60,6 +60,7 @@ func (psql *Store) PlaceOrder(ctx context.Context, customerID int, req PlaceOrde
 			if errors.Is(err, sql.ErrNoRows) {
 				return Order{}, false, mapProductErr(ErrInsufficientStock, lp.row.ID)
 			}
+			return Order{}, false, err
 		}
 
 		// Create order items

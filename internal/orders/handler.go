@@ -10,8 +10,6 @@ import (
 	"github.com/go-chi/chi/v5"
 )
 
-const invalidCustomerID = "invalid customer ID"
-
 func (h *Handler) GetCustomerOrdersHandler(w http.ResponseWriter, r *http.Request) {
 	claims := middleware.GetClaims(r)
 	if claims == nil {
