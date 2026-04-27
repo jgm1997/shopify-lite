@@ -90,3 +90,30 @@ func (psql *Store) GetMyProductsDashboard(ctx context.Context, merchantID int) (
 	}
 	return metrics, nil
 }
+
+func (psql *Store) GetProductsPaginated(ctx context.Context, page, limit int) ([]Product, error) {
+	offset := (page - 1) * limit
+	rows, err := psql.queries.GetProductsPaginated(ctx, db.GetProductsPaginatedParams{
+		Limit:  int32(limit),
+		Offset: int32(offset),
+	})
+	if err != nil {
+		return []Product{}, err
+	}
+	products := make([]Product, len(rows))
+	for i, row := range rows {
+		products[i] = toProduct(row)
+	}
+	return products, nil
+}
+
+func (psql *Store) GetProductByID(ctx context.Context, productID int) (Product, bool, error) {
+	row, err := psql.queries.GetProductByID(ctx, int32(productID))
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return Product{}, false, nil
+		}
+		return Product{}, false, err
+	}
+	return toProduct(row), true, nil
+}

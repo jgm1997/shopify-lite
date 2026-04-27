@@ -30,6 +30,8 @@ type Products interface {
 	UpdateMyProduct(ctx context.Context, product Product) (Product, bool, error)
 	DeleteMyProduct(ctx context.Context, productID, merchantID int) (bool, error)
 	GetMyProductsDashboard(ctx context.Context, merchantID int) (ProductMetrics, error)
+	GetProductsPaginated(ctx context.Context, page, limit int) ([]Product, error)
+	GetProductByID(ctx context.Context, productID int) (Product, bool, error)
 }
 
 type Store struct{ queries *db.Queries }

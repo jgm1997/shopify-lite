@@ -1,0 +1,13 @@
+# Environment
+.env
+*.env
+
+# Binary
+shopify-lite
+
+# IDE
+.idea/
+.vscode/
+
+# OS
+.DS_Store

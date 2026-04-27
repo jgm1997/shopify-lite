@@ -11,6 +11,7 @@ import (
 	sqldb "shopify-lite/internal/db"
 	"shopify-lite/internal/merchants"
 	authm "shopify-lite/internal/middleware"
+	"shopify-lite/internal/orders"
 	"shopify-lite/internal/products"
 	"shopify-lite/internal/users"
 	"syscall"
@@ -74,6 +75,9 @@ func main() {
 	merchantsHandler := merchants.NewHandler(merchantsStore)
 	productsStore := products.NewPsqlHandler(sqldb.New(conn))
 	productsHandler := products.NewHandler(productsStore)
+	ordersStore := orders.NewPsqlHandler(conn, sqldb.New(conn))
+	ordersHandler := orders.NewHandler(ordersStore)
+
 	authMiddleware := authm.NewAuthMiddleware(jwtSecret)
 
 	r := chi.NewRouter()
@@ -83,18 +87,22 @@ func main() {
 	// Public routes
 	r.Post("/api/v1/auth/register", usersHandler.RegisterHandler)
 	r.Post("/api/v1/auth/login", usersHandler.LoginHandler)
+	r.Get("/api/v1/products", productsHandler.GetProductsPaginatedHandler)
+	r.Get("/api/v1/products/{id}", productsHandler.GetProductByIDHandler)
 
 	// Protected routes
 	r.With(authMiddleware.Protect).Get("/api/v1/me", usersHandler.GetMeHandler)
+
 	r.With(authMiddleware.RequireRole("merchant")).Get("/api/v1/merchants/me", merchantsHandler.GetMeMerchantHandler)
 	r.With(authMiddleware.RequireRole("merchant")).Get("/api/v1/merchants/me/products", productsHandler.GetMyProductsHandler)
 	r.With(authMiddleware.RequireRole("merchant")).Get("/api/v1/merchants/me/dashboard", productsHandler.GetMyProductsDashboardHandler)
-
 	r.With(authMiddleware.RequireRole("merchant")).Post("/api/v1/merchants/me/products", productsHandler.CreateMyProductHandler)
-
 	r.With(authMiddleware.RequireRole("merchant")).Put("/api/v1/merchants/me/products/{id}", productsHandler.UpdateMyProductHandler)
-
 	r.With(authMiddleware.RequireRole("merchant")).Delete("/api/v1/merchants/me/products/{id}", productsHandler.DeleteMyProductHandler)
+
+	r.With(authMiddleware.RequireRole("customer")).Get("/api/v1/orders", ordersHandler.GetCustomerOrdersHandler)
+	r.With(authMiddleware.RequireRole("customer")).Get("/api/v1/orders/{id}", ordersHandler.GetOrderByIDHandler)
+	r.With(authMiddleware.RequireRole("customer")).Post("/api/v1/orders", ordersHandler.CreateOrderHandler)
 
 	srv := &http.Server{Addr: ":8080", Handler: r}
 	go func() {

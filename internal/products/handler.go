@@ -10,6 +10,7 @@ import (
 )
 
 const failedFetchMerchant = "failed to fetch merchant"
+const invalidProductID = "invalid product ID"
 
 func (h *Handler) GetMyProductsHandler(w http.ResponseWriter, r *http.Request) {
 	claims := middleware.GetClaims(r)
@@ -52,7 +53,7 @@ func (h *Handler) CreateMyProductHandler(w http.ResponseWriter, r *http.Request)
 func (h *Handler) UpdateMyProductHandler(w http.ResponseWriter, r *http.Request) {
 	id, err := strconv.Atoi(chi.URLParam(r, "id"))
 	if err != nil {
-		http.Error(w, "invalid product ID", http.StatusBadRequest)
+		http.Error(w, invalidProductID, http.StatusBadRequest)
 		return
 	}
 	claims := middleware.GetClaims(r)
@@ -84,7 +85,7 @@ func (h *Handler) UpdateMyProductHandler(w http.ResponseWriter, r *http.Request)
 func (h *Handler) DeleteMyProductHandler(w http.ResponseWriter, r *http.Request) {
 	id, err := strconv.Atoi(chi.URLParam(r, "id"))
 	if err != nil {
-		http.Error(w, "invalid product ID", http.StatusBadRequest)
+		http.Error(w, invalidProductID, http.StatusBadRequest)
 		return
 	}
 	claims := middleware.GetClaims(r)
@@ -120,4 +121,44 @@ func (h *Handler) GetMyProductsDashboardHandler(w http.ResponseWriter, r *http.R
 	}
 
 	utils.RespondWithJson(w, http.StatusOK, dashboard)
+}
+
+func (h *Handler) GetProductsPaginatedHandler(w http.ResponseWriter, r *http.Request) {
+	page, err := strconv.Atoi(r.URL.Query().Get("page"))
+	if err != nil || page < 1 {
+		page = 1
+	}
+
+	limit := 20
+	if l, err := strconv.Atoi(r.URL.Query().Get("limit")); err == nil && l > 0 && l <= 50 {
+		limit = l
+	}
+
+	products, err := h.products.GetProductsPaginated(r.Context(), page, limit)
+	if err != nil {
+		http.Error(w, "failed to fetch products", http.StatusInternalServerError)
+		return
+	}
+
+	utils.RespondWithJson(w, http.StatusOK, products)
+}
+
+func (h *Handler) GetProductByIDHandler(w http.ResponseWriter, r *http.Request) {
+	id, err := strconv.Atoi(chi.URLParam(r, "id"))
+	if err != nil {
+		http.Error(w, invalidProductID, http.StatusBadRequest)
+		return
+	}
+
+	product, found, err := h.products.GetProductByID(r.Context(), id)
+	if err != nil {
+		http.Error(w, "failed to fetch product", http.StatusInternalServerError)
+		return
+	}
+	if !found {
+		http.Error(w, "product not found", http.StatusNotFound)
+		return
+	}
+
+	utils.RespondWithJson(w, http.StatusOK, product)
 }

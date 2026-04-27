@@ -12,22 +12,20 @@ import (
 
 const createProduct = `-- name: CreateProduct :one
 insert into products (
-   merchant_id,
-   "name",
-   "description",
-   price,
-   stock
-) values ( $1,
-           $2,
-           $3,
-           $4,
-           $5 ) returning "id",
-                            merchant_id,
-                            "name",
-                            "description",
-                            price,
-                            stock,
-                            created_at
+    merchant_id,
+    "name",
+    "description",
+    price,
+    stock
+  )
+values ($1, $2, $3, $4, $5)
+returning "id",
+  merchant_id,
+  "name",
+  "description",
+  price,
+  stock,
+  created_at
 `
 
 type CreateProductParams struct {
@@ -61,8 +59,8 @@ func (q *Queries) CreateProduct(ctx context.Context, arg CreateProductParams) (P
 
 const deleteProduct = `-- name: DeleteProduct :execrows
 delete from products
- where id = $1
-   and merchant_id = $2
+where id = $1
+  and merchant_id = $2
 `
 
 type DeleteProductParams struct {
@@ -80,8 +78,8 @@ func (q *Queries) DeleteProduct(ctx context.Context, arg DeleteProductParams) (i
 
 const getMerchantsProducts = `-- name: GetMerchantsProducts :many
 select id, merchant_id, name, description, price, stock, created_at
-  from products
- where merchant_id = $1
+from products
+where merchant_id = $1
 `
 
 func (q *Queries) GetMerchantsProducts(ctx context.Context, merchantID int32) ([]Product, error) {
@@ -117,9 +115,9 @@ func (q *Queries) GetMerchantsProducts(ctx context.Context, merchantID int32) ([
 
 const getProduct = `-- name: GetProduct :one
 select id, merchant_id, name, description, price, stock, created_at
-  from products
- where id = $1
-   and merchant_id = $2
+from products
+where id = $1
+  and merchant_id = $2
 `
 
 type GetProductParams struct {
@@ -142,21 +140,84 @@ func (q *Queries) GetProduct(ctx context.Context, arg GetProductParams) (Product
 	return i, err
 }
 
+const getProductByID = `-- name: GetProductByID :one
+select id, merchant_id, name, description, price, stock, created_at
+from products
+where "id" = $1
+`
+
+func (q *Queries) GetProductByID(ctx context.Context, id int32) (Product, error) {
+	row := q.db.QueryRowContext(ctx, getProductByID, id)
+	var i Product
+	err := row.Scan(
+		&i.ID,
+		&i.MerchantID,
+		&i.Name,
+		&i.Description,
+		&i.Price,
+		&i.Stock,
+		&i.CreatedAt,
+	)
+	return i, err
+}
+
+const getProductsPaginated = `-- name: GetProductsPaginated :many
+select id, merchant_id, name, description, price, stock, created_at
+from products
+limit $1 offset $2
+`
+
+type GetProductsPaginatedParams struct {
+	Limit  int32
+	Offset int32
+}
+
+func (q *Queries) GetProductsPaginated(ctx context.Context, arg GetProductsPaginatedParams) ([]Product, error) {
+	rows, err := q.db.QueryContext(ctx, getProductsPaginated, arg.Limit, arg.Offset)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []Product
+	for rows.Next() {
+		var i Product
+		if err := rows.Scan(
+			&i.ID,
+			&i.MerchantID,
+			&i.Name,
+			&i.Description,
+			&i.Price,
+			&i.Stock,
+			&i.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const updateProduct = `-- name: UpdateProduct :one
 update products
-   set "name" = $3,
-       "description" = $4,
-       price = $5,
-       stock = $6
- where "id" = $1
-   and merchant_id = $2
+set "name" = $3,
+  "description" = $4,
+  price = $5,
+  stock = $6
+where "id" = $1
+  and merchant_id = $2
 returning "id",
-             merchant_id,
-             "name",
-             "description",
-             price,
-             stock,
-             created_at
+  merchant_id,
+  "name",
+  "description",
+  price,
+  stock,
+  created_at
 `
 
 type UpdateProductParams struct {
