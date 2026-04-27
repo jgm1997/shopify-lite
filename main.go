@@ -26,12 +26,12 @@ import (
 func runMigrations(dsn string) error {
 	m, err := migrate.New("file://db/migrations", dsn)
 	if err != nil {
-		return fmt.Errorf("failed to create migration: %v", err)
+		return fmt.Errorf("failed to create migration: %w", err)
 	}
 	defer m.Close()
 
 	if err := m.Up(); err != nil && err != migrate.ErrNoChange {
-		return fmt.Errorf("migration failed: %v", err)
+		return fmt.Errorf("migration failed: %w", err)
 	}
 	return nil
 }

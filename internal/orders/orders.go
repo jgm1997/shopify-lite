@@ -14,7 +14,7 @@ func mapProductErr(err error, productID int32) error {
 	if errors.Is(err, sql.ErrNoRows) {
 		return fmt.Errorf(productErrFmt, productID, ErrProductNotFound)
 	}
-	return err
+	return fmt.Errorf(productErrFmt, productID, err)
 }
 
 func (psql *Store) PlaceOrder(ctx context.Context, customerID int, req PlaceOrderRequest) (Order, bool, error) {
@@ -30,7 +30,7 @@ func (psql *Store) PlaceOrder(ctx context.Context, customerID int, req PlaceOrde
 		row      db.GetProductForUpdateRow
 		quantity int32
 	}
-	locked := make([]lockedProduct, len(req.Items))
+	locked := make([]lockedProduct, 0, len(req.Items))
 
 	for _, item := range req.Items {
 		product, err := qtx.GetProductForUpdate(ctx, item.ProductID)
@@ -57,7 +57,9 @@ func (psql *Store) PlaceOrder(ctx context.Context, customerID int, req PlaceOrde
 			Stock: lp.quantity,
 		})
 		if err != nil {
-			return Order{}, false, mapProductErr(err, lp.row.ID)
+			if errors.Is(err, sql.ErrNoRows) {
+				return Order{}, false, mapProductErr(ErrInsufficientStock, lp.row.ID)
+			}
 		}
 
 		// Create order items

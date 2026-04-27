@@ -7,14 +7,6 @@ import (
 	"shopify-lite/internal/utils"
 )
 
-func (psql *Store) GetMerchantIDByUserID(ctx context.Context, userID int) (int, error) {
-	merchant, err := psql.queries.GetMerchantByUserID(ctx, int32(userID))
-	if err != nil {
-		return 0, err
-	}
-	return int(merchant.ID), nil
-}
-
 func (psql *Store) GetMyProducts(ctx context.Context, merchantID int) ([]Product, error) {
 	rows, err := psql.queries.GetMerchantsProducts(ctx, int32(merchantID))
 	if err != nil {

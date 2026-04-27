@@ -18,17 +18,12 @@ func (h *Handler) GetCustomerOrdersHandler(w http.ResponseWriter, r *http.Reques
 		http.Error(w, "unauthorized", http.StatusUnauthorized)
 		return
 	}
-	customerID := claims.UserID
-	if customerID == 0 {
-		http.Error(w, invalidCustomerID, http.StatusBadRequest)
-		return
-	}
-
-	orders, err := h.orders.GetCustomerOrders(r.Context(), customerID)
+	orders, err := h.orders.GetCustomerOrders(r.Context(), claims.UserID)
 	if err != nil {
 		http.Error(w, "failed to get customer orders", http.StatusInternalServerError)
 		return
 	}
+
 	utils.RespondWithJson(w, http.StatusOK, orders)
 }
 
@@ -38,18 +33,15 @@ func (h *Handler) GetOrderByIDHandler(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "unauthorized", http.StatusUnauthorized)
 		return
 	}
-	customerID := claims.UserID
-	if customerID == 0 {
-		http.Error(w, invalidCustomerID, http.StatusBadRequest)
-		return
-	}
+
 	orderIDStr := chi.URLParam(r, "id")
 	orderID, err := strconv.Atoi(orderIDStr)
 	if err != nil || orderID <= 0 {
 		http.Error(w, "invalid order ID", http.StatusBadRequest)
 		return
 	}
-	order, found, err := h.orders.GetOrderByID(r.Context(), orderID, customerID)
+
+	order, found, err := h.orders.GetOrderByID(r.Context(), orderID, claims.UserID)
 	if err != nil {
 		http.Error(w, "failed to get order", http.StatusInternalServerError)
 		return
@@ -58,6 +50,7 @@ func (h *Handler) GetOrderByIDHandler(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "order not found", http.StatusNotFound)
 		return
 	}
+
 	utils.RespondWithJson(w, http.StatusOK, order)
 }
 
@@ -65,11 +58,6 @@ func (h *Handler) CreateOrderHandler(w http.ResponseWriter, r *http.Request) {
 	claims := middleware.GetClaims(r)
 	if claims == nil {
 		http.Error(w, "unauthorized", http.StatusUnauthorized)
-		return
-	}
-	customerID := claims.UserID
-	if customerID == 0 {
-		http.Error(w, invalidCustomerID, http.StatusBadRequest)
 		return
 	}
 
@@ -82,7 +70,7 @@ func (h *Handler) CreateOrderHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	order, ok, err := h.orders.PlaceOrder(r.Context(), customerID, req)
+	order, ok, err := h.orders.PlaceOrder(r.Context(), claims.UserID, req)
 	if err != nil {
 		switch {
 		case errors.Is(err, ErrProductNotFound):
