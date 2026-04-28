@@ -2,6 +2,7 @@ package utils
 
 import (
 	"encoding/json"
+	"net"
 	"net/http"
 	"strconv"
 	"strings"
@@ -80,4 +81,12 @@ func ToFloat64(v interface{}) float64 {
 		}
 	}
 	return 0
+}
+
+func GetIP(r *http.Request) string {
+	ip, _, err := net.SplitHostPort(r.RemoteAddr)
+	if err != nil {
+		return r.RemoteAddr
+	}
+	return ip
 }

@@ -32,4 +32,25 @@ order by o.created_at desc;
 -- name: GetOrderByID :one
 select *
 from orders
-where id = $1 and customer_id = $2;
+where id = $1
+    and customer_id = $2;
+-- name: GetOrderByIDForMerchant :one
+select o.*
+from orders o
+    join order_items oi on oi.order_id = o.id
+    join products p on p.id = oi.product_id
+where o.id = $1
+    and p.merchant_id = $2
+limit 1;
+-- name: UpdateOrderStatus :one
+update orders
+set status = $2
+where id = $1
+returning *;
+
+-- name: GetOrderItemsForMerchant :many
+select oi.*
+from order_items oi
+    join products p on p.id = oi.product_id
+where oi.order_id = $1
+    and p.merchant_id = $2;

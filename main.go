@@ -4,7 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
-	"log"
+	"log/slog"
 	"net/http"
 	"os"
 	"os/signal"
@@ -37,21 +37,27 @@ func runMigrations(dsn string) error {
 }
 
 func main() {
+	logger := slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{
+		Level: slog.LevelInfo,
+	}))
+	slog.SetDefault(logger)
+
 	dsn := os.Getenv("DATABASE_URL")
 	if dsn == "" {
-		log.Println("env DATABASE_URL is not set")
+		slog.Error("env DATABASE_URL is not set")
 		return
 	}
 
 	jwtSecret := os.Getenv("JWT_SECRET")
 	if jwtSecret == "" {
-		log.Println("env JWT_SECRET is not set")
+		slog.Error("env JWT_SECRET is not set")
 		return
 	}
 
 	conn, err := sql.Open("pgx", dsn)
 	if err != nil {
-		log.Fatalf("failed to connect to database: %v", err)
+		slog.Error("failed to connect to database", "error", err)
+		return
 	}
 	defer conn.Close()
 
@@ -60,14 +66,16 @@ func main() {
 	conn.SetConnMaxLifetime(5 * time.Minute)
 
 	if err := conn.Ping(); err != nil {
-		log.Fatalf("database connection error: %v", err)
+		slog.Error("database connection error", "error", err)
+		return
 	}
-	log.Println("database connected")
+	slog.Info("database connected")
 
 	if err := runMigrations(dsn); err != nil {
-		log.Fatalf("migration error: %v", err)
+		slog.Error("migration error", "error", err)
+		return
 	}
-	log.Println("migrations completed successfully")
+	slog.Info("migrations completed successfully")
 
 	usersStore := users.NewPsqlHandler(conn, sqldb.New(conn))
 	usersHandler := users.NewHandler(usersStore, jwtSecret)
@@ -84,11 +92,14 @@ func main() {
 	r.Use(middleware.Logger)
 	r.Use(middleware.Recoverer)
 
+	rl := authm.NewRateLimiter(10, 20)
+
 	// Public routes
-	r.Post("/api/v1/auth/register", usersHandler.RegisterHandler)
-	r.Post("/api/v1/auth/login", usersHandler.LoginHandler)
-	r.Get("/api/v1/products", productsHandler.GetProductsPaginatedHandler)
-	r.Get("/api/v1/products/{id}", productsHandler.GetProductByIDHandler)
+	r.With(rl.Middleware).Post("/api/v1/auth/register", usersHandler.RegisterHandler)
+	r.With(rl.Middleware).Post("/api/v1/auth/login", usersHandler.LoginHandler)
+
+	r.With(rl.Middleware).Get("/api/v1/products", productsHandler.GetProductsPaginatedHandler)
+	r.With(rl.Middleware).Get("/api/v1/products/{id}", productsHandler.GetProductByIDHandler)
 
 	// Protected routes
 	r.With(authMiddleware.Protect).Get("/api/v1/me", usersHandler.GetMeHandler)
@@ -103,24 +114,25 @@ func main() {
 	r.With(authMiddleware.RequireRole("customer")).Get("/api/v1/orders", ordersHandler.GetCustomerOrdersHandler)
 	r.With(authMiddleware.RequireRole("customer")).Get("/api/v1/orders/{id}", ordersHandler.GetOrderByIDHandler)
 	r.With(authMiddleware.RequireRole("customer")).Post("/api/v1/orders", ordersHandler.CreateOrderHandler)
+	r.With(authMiddleware.RequireRole("merchant")).Patch("/api/v1/merchants/me/orders/{id}/status", ordersHandler.UpdateOrderStatusHandler)
 
 	srv := &http.Server{Addr: ":8080", Handler: r}
 	go func() {
 		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-			log.Fatalf("server error: %v", err)
+			slog.Error("server error", "error", err)
 		}
 	}()
 
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
 	<-quit
-	log.Println("shutting down server...")
+	slog.Info("shutting down server...")
 
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 	if err := srv.Shutdown(ctx); err != nil {
-		log.Fatalf("server forced to shutdown: %v", err)
+		slog.Error("server forced to shutdown", "error", err)
 	}
 
-	log.Println("server exiting")
+	slog.Info("server exiting")
 }

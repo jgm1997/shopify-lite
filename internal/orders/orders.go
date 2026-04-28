@@ -112,3 +112,46 @@ func (psql *Store) GetOrderByID(ctx context.Context, orderID, customerID int) (O
 	}
 	return toOrder(row), true, nil
 }
+
+func (psql *Store) UpdateOrderStatus(ctx context.Context, orderID int, status string, merchantID int) (Order, error) {
+	next := OrderStatus(status)
+	if _, ok := validTransitions[next]; !ok {
+		return Order{}, ErrInvalidStatus
+	}
+
+	order, err := psql.queries.GetOrderByIDForMerchant(ctx, db.GetOrderByIDForMerchantParams{
+		ID:         int32(orderID),
+		MerchantID: int32(merchantID),
+	})
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return Order{}, sql.ErrNoRows
+		}
+		return Order{}, err
+	}
+
+	current := OrderStatus(order.Status)
+	if !current.canTransitionTo(next) {
+		return Order{}, fmt.Errorf("%w: %s -> %s", ErrInvalidTransition, current, next)
+	}
+
+	items, err := psql.queries.GetOrderItemsForMerchant(ctx, db.GetOrderItemsForMerchantParams{
+		OrderID:    order.ID,
+		MerchantID: int32(merchantID),
+	})
+	if err != nil {
+		return Order{}, err
+	}
+	if len(items) == 0 {
+		return Order{}, fmt.Errorf("order %d has no items for merchant %d", orderID, merchantID)
+	}
+
+	updated, err := psql.queries.UpdateOrderStatus(ctx, db.UpdateOrderStatusParams{
+		ID:     int32(orderID),
+		Status: db.OrderStatus(status),
+	})
+	if err != nil {
+		return Order{}, err
+	}
+	return toOrder(updated), nil
+}

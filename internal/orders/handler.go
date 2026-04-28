@@ -1,6 +1,7 @@
 package orders
 
 import (
+	"database/sql"
 	"errors"
 	"net/http"
 	"shopify-lite/internal/middleware"
@@ -85,4 +86,46 @@ func (h *Handler) CreateOrderHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	utils.RespondWithJson(w, http.StatusCreated, order)
+}
+
+func (h *Handler) UpdateOrderStatusHandler(w http.ResponseWriter, r *http.Request) {
+	claims := middleware.GetClaims(r)
+	if claims == nil {
+		http.Error(w, "unauthorized", http.StatusUnauthorized)
+		return
+	}
+
+	orderIDStr := chi.URLParam(r, "id")
+	orderID, err := strconv.Atoi(orderIDStr)
+	if err != nil || orderID <= 0 {
+		http.Error(w, "invalid order ID", http.StatusBadRequest)
+		return
+	}
+
+	var body struct {
+		Status string `json:"status"`
+	}
+	if err := utils.DecodeJSONBody(w, r, &body); err != nil {
+		return
+	}
+	if body.Status == "" {
+		http.Error(w, "status is required", http.StatusBadRequest)
+		return
+	}
+
+	order, err := h.orders.UpdateOrderStatus(r.Context(), orderID, body.Status, claims.MerchantID)
+	if err != nil {
+		switch {
+		case errors.Is(err, ErrInvalidStatus):
+			http.Error(w, err.Error(), http.StatusBadRequest)
+		case errors.Is(err, ErrInvalidTransition):
+			http.Error(w, err.Error(), http.StatusUnprocessableEntity)
+		case errors.Is(err, sql.ErrNoRows):
+			http.Error(w, "order not found", http.StatusNotFound)
+		default:
+			http.Error(w, "failed to update order status", http.StatusInternalServerError)
+		}
+		return
+	}
+	utils.RespondWithJson(w, http.StatusOK, order)
 }

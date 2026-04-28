@@ -8,19 +8,40 @@ import (
 	"time"
 )
 
-var (
-	ErrProductNotFound   = errors.New("product not found")
-	ErrInsufficientStock = errors.New("insufficient stock")
-	ErrEmptyItems        = errors.New("order must contain at least one item")
-)
-
 type OrderStatus string
 
 const (
 	Pending   OrderStatus = "pending"
+	Confirmed OrderStatus = "confirmed"
 	Shipped   OrderStatus = "shipped"
 	Delivered OrderStatus = "delivered"
+	Cancelled OrderStatus = "cancelled"
 )
+
+var (
+	ErrProductNotFound   = errors.New("product not found")
+	ErrInsufficientStock = errors.New("insufficient stock")
+	ErrEmptyItems        = errors.New("order must contain at least one item")
+	ErrInvalidTransition = errors.New("invalid status transition")
+	ErrInvalidStatus     = errors.New("invalid order status")
+)
+
+var validTransitions = map[OrderStatus][]OrderStatus{
+	Pending:   {Confirmed, Cancelled},
+	Confirmed: {Shipped, Cancelled},
+	Shipped:   {Delivered},
+	Delivered: {},
+	Cancelled: {},
+}
+
+func (s OrderStatus) canTransitionTo(next OrderStatus) bool {
+	for _, allowed := range validTransitions[s] {
+		if allowed == next {
+			return true
+		}
+	}
+	return false
+}
 
 type Order struct {
 	ID         int32       `json:"id"`
@@ -51,6 +72,7 @@ type Orders interface {
 	PlaceOrder(ctx context.Context, customerID int, req PlaceOrderRequest) (Order, bool, error)
 	GetCustomerOrders(ctx context.Context, customerID int) ([]Order, error)
 	GetOrderByID(ctx context.Context, orderID, customerID int) (Order, bool, error)
+	UpdateOrderStatus(ctx context.Context, orderID int, status string, merchantID int) (Order, error)
 }
 
 type Store struct {
