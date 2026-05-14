@@ -98,6 +98,11 @@ type Orders interface {
 	ProcessBulkOrder(ctx context.Context, customerID int, req BulkOrderRequest) (BulkOrderResponse, error)
 }
 
+// Test interface
+type orderPlace interface {
+	PlaceOrder(ctx context.Context, customerID int, req PlaceOrderRequest) (Order, bool, error)
+}
+
 type Store struct {
 	queries *db.Queries
 	db      *sql.DB

@@ -159,11 +159,14 @@ func (psql *Store) UpdateOrderStatus(ctx context.Context, orderID int, status st
 }
 
 func (psql *Store) ProcessBulkOrder(ctx context.Context, customerID int, req BulkOrderRequest) (BulkOrderResponse, error) {
+	return processBulkWithPlacer(ctx, psql, customerID, req)
+}
+
+func processBulkWithPlacer(ctx context.Context, placer orderPlace, customerID int, req BulkOrderRequest) (BulkOrderResponse, error) {
 	const maxConcurrency = 10
 
 	results := make([]BulkOrderResult, len(req.Items))
 	sem := make(chan struct{}, maxConcurrency)
-
 	g, gctx := errgroup.WithContext(ctx)
 
 	for i, item := range req.Items {
@@ -172,7 +175,7 @@ func (psql *Store) ProcessBulkOrder(ctx context.Context, customerID int, req Bul
 			sem <- struct{}{}
 			defer func() { <-sem }()
 
-			_, _, err := psql.PlaceOrder(gctx, customerID, PlaceOrderRequest{
+			_, _, err := placer.PlaceOrder(gctx, customerID, PlaceOrderRequest{
 				Items: []OrderItemRequest{{
 					ProductID: item.ProductID,
 					Quantity:  item.Quantity,
@@ -182,31 +185,25 @@ func (psql *Store) ProcessBulkOrder(ctx context.Context, customerID int, req Bul
 				results[i] = BulkOrderResult{
 					ProductID: item.ProductID,
 					Status:    "failed",
-					Reason:    err.Error(),
+					Reason:    fmt.Sprintf("product %d: %s", item.ProductID, err.Error()),
 				}
-				return nil
-			}
-			results[i] = BulkOrderResult{
-				ProductID: item.ProductID,
-				Status:    "reserved",
 			}
 			return nil
 		})
 	}
 
 	_ = g.Wait()
-
-	var succeded, failed int
+	var succeeded, failed int
 	for _, r := range results {
 		if r.Status == "reserved" {
-			succeded++
+			succeeded++
 		} else {
 			failed++
 		}
 	}
 	return BulkOrderResponse{
 		Results:   results,
-		Succeeded: succeded,
+		Succeeded: succeeded,
 		Failed:    failed,
 	}, nil
 }
