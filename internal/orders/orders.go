@@ -6,6 +6,8 @@ import (
 	"errors"
 	"fmt"
 	"shopify-lite/internal/db"
+
+	"golang.org/x/sync/errgroup"
 )
 
 const productErrFmt = "product %d: %w"
@@ -154,4 +156,57 @@ func (psql *Store) UpdateOrderStatus(ctx context.Context, orderID int, status st
 		return Order{}, err
 	}
 	return toOrder(updated), nil
+}
+
+func (psql *Store) ProcessBulkOrder(ctx context.Context, customerID int, req BulkOrderRequest) (BulkOrderResponse, error) {
+	const maxConcurrency = 10
+
+	results := make([]BulkOrderResult, len(req.Items))
+	sem := make(chan struct{}, maxConcurrency)
+
+	g, gctx := errgroup.WithContext(ctx)
+
+	for i, item := range req.Items {
+		i, item := i, item
+		g.Go(func() error {
+			sem <- struct{}{}
+			defer func() { <-sem }()
+
+			_, _, err := psql.PlaceOrder(gctx, customerID, PlaceOrderRequest{
+				Items: []OrderItemRequest{{
+					ProductID: item.ProductID,
+					Quantity:  item.Quantity,
+				}},
+			})
+			if err != nil {
+				results[i] = BulkOrderResult{
+					ProductID: item.ProductID,
+					Status:    "failed",
+					Reason:    err.Error(),
+				}
+				return nil
+			}
+			results[i] = BulkOrderResult{
+				ProductID: item.ProductID,
+				Status:    "reserved",
+			}
+			return nil
+		})
+	}
+
+	_ = g.Wait()
+
+	var succeded, failed int
+	for _, r := range results {
+		if r.Status == "reserved" {
+			succeded++
+		} else {
+			failed++
+		}
+	}
+	return BulkOrderResponse{
+		Results:   results,
+		Succeeded: succeded,
+		Failed:    failed,
+	}, nil
 }

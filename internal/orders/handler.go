@@ -5,6 +5,7 @@ import (
 	"errors"
 	"net/http"
 	"shopify-lite/internal/middleware"
+	"shopify-lite/internal/notifications"
 	"shopify-lite/internal/utils"
 	"strconv"
 
@@ -128,4 +129,40 @@ func (h *Handler) UpdateOrderStatusHandler(w http.ResponseWriter, r *http.Reques
 		return
 	}
 	utils.RespondWithJson(w, http.StatusOK, order)
+}
+
+func (h *Handler) BulkOrderHandler(w http.ResponseWriter, r *http.Request) {
+	claims := middleware.GetClaims(r)
+	if claims == nil {
+		http.Error(w, "unauthorized", http.StatusUnauthorized)
+		return
+	}
+
+	var req BulkOrderRequest
+	if err := utils.DecodeJSONBody(w, r, &req); err != nil {
+		return
+	}
+
+	if len(req.Items) == 0 {
+		http.Error(w, ErrEmptyItems.Error(), http.StatusBadRequest)
+		return
+	}
+
+	resp, err := h.orders.ProcessBulkOrder(r.Context(), int(claims.UserID), req)
+	if err != nil {
+		http.Error(w, "failed to proccess bulk order", http.StatusInternalServerError)
+		return
+	}
+
+	go h.notifier.SendBulkOrderSummary(notifications.BulkOrderSummary{
+		CustomerID: int(claims.UserID),
+		Succeeded:  resp.Succeeded,
+		Failed:     resp.Failed,
+	})
+
+	status := http.StatusOK
+	if resp.Succeeded == 0 {
+		status = http.StatusUnprocessableEntity
+	}
+	utils.RespondWithJson(w, status, resp)
 }

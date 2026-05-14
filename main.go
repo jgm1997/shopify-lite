@@ -11,6 +11,7 @@ import (
 	sqldb "shopify-lite/internal/db"
 	"shopify-lite/internal/merchants"
 	authm "shopify-lite/internal/middleware"
+	"shopify-lite/internal/notifications"
 	"shopify-lite/internal/orders"
 	"shopify-lite/internal/products"
 	"shopify-lite/internal/users"
@@ -76,6 +77,7 @@ func main() {
 		return
 	}
 	slog.Info("migrations completed successfully")
+	notifier := notifications.NewNotifier()
 
 	usersStore := users.NewPsqlHandler(conn, sqldb.New(conn))
 	usersHandler := users.NewHandler(usersStore, jwtSecret)
@@ -84,7 +86,7 @@ func main() {
 	productsStore := products.NewPsqlHandler(sqldb.New(conn))
 	productsHandler := products.NewHandler(productsStore)
 	ordersStore := orders.NewPsqlHandler(conn, sqldb.New(conn))
-	ordersHandler := orders.NewHandler(ordersStore)
+	ordersHandler := orders.NewHandler(ordersStore, notifier)
 
 	authMiddleware := authm.NewAuthMiddleware(jwtSecret)
 
@@ -103,6 +105,7 @@ func main() {
 
 	// Protected routes
 	r.With(authMiddleware.Protect).Get("/api/v1/me", usersHandler.GetMeHandler)
+	r.With(authMiddleware.Protect).Post("/api/v1/orders/bulk", ordersHandler.BulkOrderHandler)
 
 	r.With(authMiddleware.RequireRole("merchant")).Get("/api/v1/merchants/me", merchantsHandler.GetMeMerchantHandler)
 	r.With(authMiddleware.RequireRole("merchant")).Get("/api/v1/merchants/me/products", productsHandler.GetMyProductsHandler)
@@ -128,6 +131,7 @@ func main() {
 	<-quit
 	slog.Info("shutting down server...")
 
+	notifier.Shutdown()
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 	if err := srv.Shutdown(ctx); err != nil {

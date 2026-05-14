@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"shopify-lite/internal/db"
+	"shopify-lite/internal/notifications"
 	"time"
 )
 
@@ -68,11 +69,33 @@ type OrderItem struct {
 	UnitPrice float64 `json:"unitPrice"`
 }
 
+type BulkOrderItem struct {
+	ProductID int32 `json:"productId"`
+	Quantity  int32 `json:"quantity"`
+}
+
+type BulkOrderRequest struct {
+	Items []BulkOrderItem `json:"items"`
+}
+
+type BulkOrderResult struct {
+	ProductID int32  `json:"productId"`
+	Status    string `json:"status"`
+	Reason    string `json:"reason,omitempty"`
+}
+
+type BulkOrderResponse struct {
+	Results   []BulkOrderResult `json:"results"`
+	Succeeded int               `json:"succeeded"`
+	Failed    int               `json:"failed"`
+}
+
 type Orders interface {
 	PlaceOrder(ctx context.Context, customerID int, req PlaceOrderRequest) (Order, bool, error)
 	GetCustomerOrders(ctx context.Context, customerID int) ([]Order, error)
 	GetOrderByID(ctx context.Context, orderID, customerID int) (Order, bool, error)
 	UpdateOrderStatus(ctx context.Context, orderID int, status string, merchantID int) (Order, error)
+	ProcessBulkOrder(ctx context.Context, customerID int, req BulkOrderRequest) (BulkOrderResponse, error)
 }
 
 type Store struct {
@@ -80,14 +103,17 @@ type Store struct {
 	db      *sql.DB
 }
 
-type Handler struct{ orders Orders }
+type Handler struct {
+	orders   Orders
+	notifier *notifications.Notifier
+}
 
 func NewPsqlHandler(db *sql.DB, queries *db.Queries) *Store {
 	return &Store{db: db, queries: queries}
 }
 
-func NewHandler(orders Orders) *Handler {
-	return &Handler{orders: orders}
+func NewHandler(orders Orders, notifier *notifications.Notifier) *Handler {
+	return &Handler{orders: orders, notifier: notifier}
 }
 
 func toOrder(row db.Order) Order {
